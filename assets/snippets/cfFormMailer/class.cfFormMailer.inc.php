@@ -420,6 +420,7 @@ class Class_cfFormMailer {
     }
     $tmpl = $this->replacePlaceHolder($tmpl, ($form + $additional));
     $tmpl = $this->clearPlaceHolder($tmpl);
+    $tmpl = $this->insertLinefeed($tmpl);
     
     // 自動返信メールの本文生成
     if (AUTO_REPLY && $reply_to) {
@@ -440,6 +441,7 @@ class Class_cfFormMailer {
       }
       $tmpl_u = $this->replacePlaceHolder($tmpl_u, ($form_u + $additional));
       $tmpl_u = $this->clearPlaceHolder($tmpl_u);
+      $tmpl_u = $this->insertLinefeed($tmpl_u);
     }
     
     // 管理者宛送信
@@ -447,6 +449,18 @@ class Class_cfFormMailer {
     $pm->IsMail();
     $pm->IsHTML(ADMIN_ISHTML);
     $pm->CharSet = $mailCharset;
+    if (ADMIN_QUERY_NAME !== '' && ADMIN_QUERY_MAIL !== '') {
+      $admin_query_addresses = explode(',', ADMIN_QUERY_MAIL);
+      foreach ($admin_query_addresses as $v) {
+        $tmp_admin_addresses = explode('|', $v);
+        if (isset($tmp_admin_addresses[0]) && isset($form[ADMIN_QUERY_NAME]) &&
+          trim($tmp_admin_addresses[0]) === $form[ADMIN_QUERY_NAME]) {
+          array_shift($tmp_admin_addresses);
+          $admin_addresses = $tmp_admin_addresses;
+          break;
+        }
+      }
+    }
     foreach ($admin_addresses as $v) {
       if ($this->_isValidEmail($v)) {
         $pm->AddAddress(trim($v));
@@ -473,7 +487,7 @@ class Class_cfFormMailer {
       }
     }
     if ($pm->Send() == false) {
-      $this->setError('メール送信に失敗しました::' . $pm->ErrorInfo);var_dump($pm);
+      $this->setError('メール送信に失敗しました::' . $pm->ErrorInfo);
       return false;
     }
 
@@ -542,6 +556,69 @@ class Class_cfFormMailer {
       $_string .= (($_string) && $flag ? "\r\n" . " " : (!$flag ? " " : "")) . "=?{$encode}?B?" . base64_encode(mb_convert_encoding($output, $encode, CHARSET)) . '?=';
     }
     return $_string;
+  }
+
+  /**
+   * 指定の文字数ごとに改行コードを挿入する
+   * 
+   * @access public
+   * @param  string  $text   文字列
+   * @param  integer $length 分割する長さ
+   * @return string 指定の文字数で改行された文字列
+   */
+  function insertLinefeed($text, $length = 989) {
+    $text_lines = explode("\n", $text);
+    // sendmailが990バイト毎に!+CRLFを挿入するため、最大を989に設定する
+    if ($length > 989) {
+      $length = 989;
+    }
+    foreach ($text_lines as $key => $val) {
+      $start = 0;
+      $byte  = strlen(bin2hex($val)) / 2;
+      if ($byte > 0 && $byte > $length) {
+        $substrs  = array();
+        $chk_byte = 0;
+        
+        // 切り取り開始の値が文字列のバイト数より小さければ処理する
+        while ($byte > $chk_byte) {
+          $num         = $length;
+          $part_length = $length;
+          $part_text   = '';
+          $part_byte   = 0;
+          $is_first    = TRUE;
+          
+          // 分割する長さが0以上ならば処理する
+          while ($num > 0) {
+            $part_text = mb_substr($val, $start, $part_length, CHARSET);
+            $part_byte = strlen(bin2hex($part_text)) / 2;
+            // 初回の処理時に切り取った文字列のバイト数が
+            // 元の文字列のバイト数より大きければ処理を終了する
+            if ($is_first && $part_byte <= $length) {
+              break;
+            } else {
+              $is_first = FALSE;
+            }
+            // 分割する長さの5バイト以内なら処理を終了する（UTF-8 最大6バイト長）
+            // それ以外は取得する文字列の長さを変更する
+            if ($part_byte >= ($length - 5) && $part_byte <= $length) {
+              break;
+            } else if ($part_byte > $length) {
+              $num = floor($num / 2) + 1;
+              $part_length -= $num;
+            } else if ($part_byte < $length) {
+              $num = floor($num / 2) + 1;
+              $part_length += $num;
+            }
+          }
+          $substrs[] = $part_text;
+          $start    += $part_length;
+          $chk_byte += $part_byte;
+        }
+      // 半角スペース+改行で結合する（RFC 3676）
+      $text_lines[$key] = implode(" \n", $substrs);
+      }
+    }
+    return implode("\n", $text_lines);
   }
 
   /**
@@ -1255,13 +1332,13 @@ class Class_cfFormMailer {
   function _def_len($value, $param, $field) {
     if (preg_match("/([0-9]+)?(\-)?([0-9]+)?/", $param, $match)) {
       if ($match[1] && empty($match[2]) && empty($match[3])) {
-        if (strlen($value) != $match[1]) { return "{$match[1]}文字で入力してください";}
+        if (mb_strlen($value, CHARSET) != $match[1]) { return "{$match[1]}文字で入力してください";}
       } elseif (empty($match[1]) && $match[2] && $match[3]) {
-        if (strlen($value) > $match[3]) { return "{$match[3]}文字以内で入力してください";}
+        if (mb_strlen($value, CHARSET) > $match[3]) { return "{$match[3]}文字以内で入力してください";}
       } elseif ($match[1] && $match[2] && empty($match[3])) {
-        if (strlen($value) < $match[1]) { return "{$match[1]}文字以上で入力してください";}
+        if (mb_strlen($value, CHARSET) < $match[1]) { return "{$match[1]}文字以上で入力してください";}
       } elseif ($match[1] && $match[2] && $match[3]) {
-        if (strlen($value) < $match[1] || strlen($value) > $match[3]) { return "{$match[1]}～{$match[3]}文字で入力してください";}
+        if (mb_strlen($value, CHARSET) < $match[1] || mb_strlen($value, CHARSET) > $match[3]) { return "{$match[1]}～{$match[3]}文字で入力してください";}
       }
     }
     return true;

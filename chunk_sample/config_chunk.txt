@@ -19,6 +19,14 @@ admin_subject = メールフォームからのメールです
 # HTMLメールフラグ（0: テキストメール / 1: HTMLメール）
 admin_ishtml = 0
 
+# 管理者メールの送信先を判断するためのクエリー名
+#      例： service
+admin_query_name = 
+
+# クエリー値別の管理者メール送信先（パイプライン区切りで複数のメール指定可、コンマ区切りで複数のクエリー値指定可）
+#      例： サービスについて|info@sample.com|post@sample.com,その他|other@sample.com
+admin_query_mail = 
+
 
 #------------------------------------------------------
 # 自動返信メール設定
