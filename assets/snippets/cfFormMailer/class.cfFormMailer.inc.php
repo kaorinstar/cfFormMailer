@@ -487,7 +487,11 @@ class Class_cfFormMailer {
       }
     }
     if ($pm->Send() == false) {
-      $this->setError('メール送信に失敗しました::' . $pm->ErrorInfo);
+      $errormsg = 'メール送信に失敗しました::' . $pm->ErrorInfo;
+      $this->setError($errormsg);// var_dump($pm);
+      $vars = var_export($pm, true);
+      $vars = nl2br(htmlspecialchars($vars));
+      $this->modx->logEvent(1, 3, $errormsg . $vars);
       return false;
     }
 
@@ -533,7 +537,11 @@ class Class_cfFormMailer {
       }
 
       if (!$send_flag) {
-        $this->setError('自動返信メール送信に失敗しました::' . $pm->ErrorInfo);
+        $errormsg = '自動返信メール送信に失敗しました::' . $pm->ErrorInfo;
+        $this->setError($errormsg);
+        $vars = var_export($pm, true);
+        $vars = nl2br(htmlspecialchars($vars));
+        $this->modx->logEvent(1, 3, $errormsg . $vars);
         return false;
       }
     }
